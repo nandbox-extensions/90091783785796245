@@ -58,44 +58,49 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
                 return;
             }
 
-            String chatId = chat.getId();
             String text = incomingMessage.getText();
-            String reference = Utils.getUniqueId();
-            String userId = from.getId();
-            String appId = incomingMessage.getAppId();
-            Integer chatSettings = incomingMessage.getChatSettings();
-
             if (text == null) {
                 text = "";
             }
             text = text.trim();
 
-            String notificationText;
-            if (text.length() == 0) {
-                notificationText = "message";
-            } else {
-                notificationText = "message\n" + text;
-            }
+            String title = "message";
+            String body = text;
 
-            api.sendText(
-                    chatId,
-                    notificationText,
-                    reference,
-                    null,
-                    userId,
-                    0,
-                    false,
-                    chatSettings,
-                    null,
-                    null,
-                    null,
-                    appId
-            );
+            sendPushNotificationOnly(from, title, body);
         } catch (Exception e) {
             try {
                 e.printStackTrace();
             } catch (Exception ex) {
             }
         }
+    }
+
+    private void sendPushNotificationOnly(User toUser, String title, String body) {
+        if (toUser == null) {
+            return;
+        }
+        String userId = toUser.getId();
+        String safeTitle = title == null ? "" : title;
+        String safeBody = body == null ? "" : body;
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("PUSH_NOTIFICATION_ONLY ");
+        sb.append("userId=").append(userId);
+        sb.append(" title=").append(escapeForLog(safeTitle));
+        sb.append(" body=").append(escapeForLog(safeBody));
+
+        System.out.println(sb.toString());
+    }
+
+    private String escapeForLog(String s) {
+        if (s == null) {
+            return "";
+        }
+        String r = s;
+        r = r.replace("\\r", " ");
+        r = r.replace("\\n", " ");
+        r = r.replace("\\t", " ");
+        return r;
     }
 }
