@@ -46,69 +46,56 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
     }
 
     @Override
-    public void onReceive(IncomingMessage incomingMsg) {
-        if (incomingMsg == null) {
+    public void onReceive(IncomingMessage incomingMessage) {
+        if (incomingMessage == null) {
             return;
         }
 
         try {
-            Chat chat = incomingMsg.getChat();
-            User from = incomingMsg.getFrom();
+            Chat chat = incomingMessage.getChat();
+            User from = incomingMessage.getFrom();
             if (chat == null || from == null) {
                 return;
             }
 
             String chatId = chat.getId();
-            String text = incomingMsg.getText();
+            String text = incomingMessage.getText();
             String reference = Utils.getUniqueId();
             String userId = from.getId();
-            String appId = incomingMsg.getAppId();
-            Integer chatSettings = incomingMsg.getChatSettings();
+            String appId = incomingMessage.getAppId();
+            Integer chatSettings = incomingMessage.getChatSettings();
 
             if (text == null) {
                 text = "";
             }
             text = text.trim();
 
-            String response;
+            String notificationText;
             if (text.length() == 0) {
-                response = "message\n";
+                notificationText = "message";
             } else {
-                response = "message\n" + text;
+                notificationText = "message\n" + text;
             }
 
             api.sendText(
-                chatId,
-                response,
-                reference,
-                null,
-                userId,
-                0,
-                false,
-                chatSettings,
-                null,
-                null,
-                null,
-                appId
+                    chatId,
+                    notificationText,
+                    reference,
+                    null,
+                    userId,
+                    0,
+                    false,
+                    chatSettings,
+                    null,
+                    null,
+                    null,
+                    appId
             );
         } catch (Exception e) {
             try {
                 e.printStackTrace();
             } catch (Exception ex) {
             }
-        }
-    }
-
-    @Override
-    public void onReceive(JSONObject obj) {
-        if (obj == null) {
-            return;
-        }
-        try {
-            if (obj.containsKey("message") || obj.containsKey("chat") || obj.containsKey("from")) {
-                return;
-            }
-        } catch (Exception e) {
         }
     }
 }
