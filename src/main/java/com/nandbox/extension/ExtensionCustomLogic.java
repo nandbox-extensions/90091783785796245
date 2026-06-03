@@ -46,13 +46,13 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
     }
 
     @Override
-    public void onReceive(IncomingMessage incomingMessage) {
-        if (incomingMessage == null || api == null) {
+    public void onReceive(IncomingMessage incomingMsg) {
+        if (incomingMsg == null || api == null) {
             return;
         }
 
         try {
-            User from = incomingMessage.getFrom();
+            User from = incomingMsg.getFrom();
             if (from == null) {
                 return;
             }
@@ -73,104 +73,19 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
                 return;
             }
 
-            String appId = incomingMessage.getAppId();
-            if (appId == null) {
-                appId = "";
-            }
-
-            String text = incomingMessage.getText();
+            String text = incomingMsg.getText();
             if (text == null) {
                 text = "";
             }
             text = text.trim();
 
             String title = "message";
-
-            Object notificationType = resolveNotificationType();
-            if (notificationType == null) {
-                return;
+            String appId = incomingMsg.getAppId();
+            if (appId == null) {
+                appId = "";
             }
 
-            invokeSendNotification(userId, notificationType, title, text, appId);
-        } catch (Exception e) {
-            try {
-                e.printStackTrace();
-            } catch (Exception ex) {
-            }
-        }
-    }
-
-    private Object resolveNotificationType() {
-        try {
-            Class ntClass = Class.forName("com.nandbox.bots.api.data.NotificationType");
-            if (ntClass.isEnum()) {
-                try {
-                    return Enum.valueOf(ntClass, "PUSH");
-                } catch (Exception e) {
-                }
-                try {
-                    return Enum.valueOf(ntClass, "PUSH_NOTIFICATION");
-                } catch (Exception e) {
-                }
-                try {
-                    return Enum.valueOf(ntClass, "NOTIFICATION");
-                } catch (Exception e) {
-                }
-                try {
-                    Object[] values = ntClass.getEnumConstants();
-                    if (values != null && values.length > 0) {
-                        return values[0];
-                    }
-                } catch (Exception e) {
-                }
-            }
-        } catch (Exception e) {
-        }
-        return null;
-    }
-
-    private void invokeSendNotification(long userId, Object notificationType, String title, String message, String appId) {
-        if (api == null) {
-            return;
-        }
-
-        String safeTitle = title == null ? "" : title;
-        String safeMessage = message == null ? "" : message;
-        String safeAppId = appId == null ? "" : appId;
-
-        try {
-            java.lang.reflect.Method m = api.getClass().getMethod(
-                    "sendNotification",
-                    new Class[] { Long.TYPE, notificationType.getClass(), String.class, String.class, String.class }
-            );
-            m.invoke(api, new Object[] { new Long(userId), notificationType, safeTitle, safeMessage, safeAppId });
-            return;
-        } catch (Exception e) {
-        }
-
-        try {
-            java.lang.reflect.Method[] methods = api.getClass().getMethods();
-            for (int i = 0; i < methods.length; i++) {
-                java.lang.reflect.Method mm = methods[i];
-                if (!"sendNotification".equals(mm.getName())) {
-                    continue;
-                }
-                Class[] p = mm.getParameterTypes();
-                if (p == null || p.length != 5) {
-                    continue;
-                }
-                if (p[0] != Long.TYPE) {
-                    continue;
-                }
-                if (p[2] != String.class || p[3] != String.class || p[4] != String.class) {
-                    continue;
-                }
-                if (!p[1].isInstance(notificationType)) {
-                    continue;
-                }
-                mm.invoke(api, new Object[] { new Long(userId), notificationType, safeTitle, safeMessage, safeAppId });
-                return;
-            }
+            api.sendNotification(userId, NandboxClient.NotificationType.Push, title, text, appId);
         } catch (Exception e) {
             try {
                 e.printStackTrace();
