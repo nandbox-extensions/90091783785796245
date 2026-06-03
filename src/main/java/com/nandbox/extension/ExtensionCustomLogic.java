@@ -52,9 +52,13 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
         }
 
         try {
-            Chat chat = incomingMessage.getChat();
             User from = incomingMessage.getFrom();
-            if (chat == null || from == null) {
+            if (from == null) {
+                return;
+            }
+
+            String userId = from.getId();
+            if (userId == null || userId.length() == 0) {
                 return;
             }
 
@@ -67,7 +71,7 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
             String title = "message";
             String body = text;
 
-            sendPushNotificationOnly(from, title, body);
+            sendUserNotificationViaReflection(userId, title, body);
         } catch (Exception e) {
             try {
                 e.printStackTrace();
@@ -76,31 +80,62 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
         }
     }
 
-    private void sendPushNotificationOnly(User toUser, String title, String body) {
-        if (toUser == null) {
+    private void sendUserNotificationViaReflection(String userId, String title, String body) {
+        if (api == null) {
             return;
         }
-        String userId = toUser.getId();
+
         String safeTitle = title == null ? "" : title;
         String safeBody = body == null ? "" : body;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append("PUSH_NOTIFICATION_ONLY ");
-        sb.append("userId=").append(userId);
-        sb.append(" title=").append(escapeForLog(safeTitle));
-        sb.append(" body=").append(escapeForLog(safeBody));
+        try {
+            java.lang.reflect.Method[] methods = api.getClass().getMethods();
+            java.lang.reflect.Method candidate = null;
 
-        System.out.println(sb.toString());
-    }
+            for (int i = 0; i < methods.length; i++) {
+                java.lang.reflect.Method m = methods[i];
+                if (!"sendUserNotification".equals(m.getName())) {
+                    continue;
+                }
+                Class[] p = m.getParameterTypes();
+                if (p == null) {
+                    continue;
+                }
 
-    private String escapeForLog(String s) {
-        if (s == null) {
-            return "";
+                if (p.length == 3 && p[0] == String.class && p[1] == String.class && p[2] == String.class) {
+                    candidate = m;
+                    break;
+                }
+
+                if (p.length == 4 && p[0] == String.class && p[1] == String.class && p[2] == String.class && p[3] == String.class) {
+                    candidate = m;
+                    break;
+                }
+
+                if (p.length == 5 && p[0] == String.class && p[1] == String.class && p[2] == String.class && p[3] == String.class && p[4] == String.class) {
+                    candidate = m;
+                    break;
+                }
+            }
+
+            if (candidate == null) {
+                System.err.println("sendUserNotification method not found in this SDK version.");
+                return;
+            }
+
+            int len = candidate.getParameterTypes().length;
+            if (len == 3) {
+                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody });
+            } else if (len == 4) {
+                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody, Utils.getUniqueId() });
+            } else {
+                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody, Utils.getUniqueId(), null });
+            }
+        } catch (Exception e) {
+            try {
+                e.printStackTrace();
+            } catch (Exception ex) {
+            }
         }
-        String r = s;
-        r = r.replace("\\r", " ");
-        r = r.replace("\\n", " ");
-        r = r.replace("\\t", " ");
-        return r;
     }
 }
