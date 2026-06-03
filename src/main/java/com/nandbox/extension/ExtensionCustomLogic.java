@@ -47,7 +47,7 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
 
     @Override
     public void onReceive(IncomingMessage incomingMessage) {
-        if (incomingMessage == null) {
+        if (incomingMessage == null || api == null) {
             return;
         }
 
@@ -57,9 +57,25 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
                 return;
             }
 
-            String userId = from.getId();
-            if (userId == null || userId.length() == 0) {
+            String userIdStr = from.getId();
+            if (userIdStr == null) {
                 return;
+            }
+            userIdStr = userIdStr.trim();
+            if (userIdStr.length() == 0) {
+                return;
+            }
+
+            long userId;
+            try {
+                userId = Long.parseLong(userIdStr);
+            } catch (NumberFormatException e) {
+                return;
+            }
+
+            String appId = incomingMessage.getAppId();
+            if (appId == null) {
+                appId = "";
             }
 
             String text = incomingMessage.getText();
@@ -69,9 +85,13 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
             text = text.trim();
 
             String title = "message";
-            String body = text;
 
-            sendUserNotificationViaReflection(userId, title, body);
+            Object notificationType = resolveNotificationType();
+            if (notificationType == null) {
+                return;
+            }
+
+            invokeSendNotification(userId, notificationType, title, text, appId);
         } catch (Exception e) {
             try {
                 e.printStackTrace();
@@ -80,56 +100,76 @@ public class ExtensionCustomLogic extends ExtensionAdapter {
         }
     }
 
-    private void sendUserNotificationViaReflection(String userId, String title, String body) {
+    private Object resolveNotificationType() {
+        try {
+            Class ntClass = Class.forName("com.nandbox.bots.api.data.NotificationType");
+            if (ntClass.isEnum()) {
+                try {
+                    return Enum.valueOf(ntClass, "PUSH");
+                } catch (Exception e) {
+                }
+                try {
+                    return Enum.valueOf(ntClass, "PUSH_NOTIFICATION");
+                } catch (Exception e) {
+                }
+                try {
+                    return Enum.valueOf(ntClass, "NOTIFICATION");
+                } catch (Exception e) {
+                }
+                try {
+                    Object[] values = ntClass.getEnumConstants();
+                    if (values != null && values.length > 0) {
+                        return values[0];
+                    }
+                } catch (Exception e) {
+                }
+            }
+        } catch (Exception e) {
+        }
+        return null;
+    }
+
+    private void invokeSendNotification(long userId, Object notificationType, String title, String message, String appId) {
         if (api == null) {
             return;
         }
 
         String safeTitle = title == null ? "" : title;
-        String safeBody = body == null ? "" : body;
+        String safeMessage = message == null ? "" : message;
+        String safeAppId = appId == null ? "" : appId;
+
+        try {
+            java.lang.reflect.Method m = api.getClass().getMethod(
+                    "sendNotification",
+                    new Class[] { Long.TYPE, notificationType.getClass(), String.class, String.class, String.class }
+            );
+            m.invoke(api, new Object[] { new Long(userId), notificationType, safeTitle, safeMessage, safeAppId });
+            return;
+        } catch (Exception e) {
+        }
 
         try {
             java.lang.reflect.Method[] methods = api.getClass().getMethods();
-            java.lang.reflect.Method candidate = null;
-
             for (int i = 0; i < methods.length; i++) {
-                java.lang.reflect.Method m = methods[i];
-                if (!"sendUserNotification".equals(m.getName())) {
+                java.lang.reflect.Method mm = methods[i];
+                if (!"sendNotification".equals(mm.getName())) {
                     continue;
                 }
-                Class[] p = m.getParameterTypes();
-                if (p == null) {
+                Class[] p = mm.getParameterTypes();
+                if (p == null || p.length != 5) {
                     continue;
                 }
-
-                if (p.length == 3 && p[0] == String.class && p[1] == String.class && p[2] == String.class) {
-                    candidate = m;
-                    break;
+                if (p[0] != Long.TYPE) {
+                    continue;
                 }
-
-                if (p.length == 4 && p[0] == String.class && p[1] == String.class && p[2] == String.class && p[3] == String.class) {
-                    candidate = m;
-                    break;
+                if (p[2] != String.class || p[3] != String.class || p[4] != String.class) {
+                    continue;
                 }
-
-                if (p.length == 5 && p[0] == String.class && p[1] == String.class && p[2] == String.class && p[3] == String.class && p[4] == String.class) {
-                    candidate = m;
-                    break;
+                if (!p[1].isInstance(notificationType)) {
+                    continue;
                 }
-            }
-
-            if (candidate == null) {
-                System.err.println("sendUserNotification method not found in this SDK version.");
+                mm.invoke(api, new Object[] { new Long(userId), notificationType, safeTitle, safeMessage, safeAppId });
                 return;
-            }
-
-            int len = candidate.getParameterTypes().length;
-            if (len == 3) {
-                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody });
-            } else if (len == 4) {
-                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody, Utils.getUniqueId() });
-            } else {
-                candidate.invoke(api, new Object[] { userId, safeTitle, safeBody, Utils.getUniqueId(), null });
             }
         } catch (Exception e) {
             try {
